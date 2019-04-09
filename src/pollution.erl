@@ -10,7 +10,7 @@
 -author("Jan Wilczek").
 
 %% API
--export([createMonitor/0, addStation/3, addValue/5, removeValue/4, getOneValue/4, getStationMean/3]).
+-export([createMonitor/0, addStation/3, addValue/5, removeValue/4, getOneValue/4, getStationMean/3, getDailyMean/3]).
 
 -record(measurement, {date, type, value}).
 -record(station, {coordinates, measurements}).
@@ -30,9 +30,9 @@ addStationChecked(StationExists, #monitor{ stations = Stations}, StationName, St
     false ->  #monitor{ stations = maps:put(StationName, #station{ coordinates = StationCoordinates, measurements = []}, Stations)}
   end.
 
-addValue(#monitor { stations = Stations }, StationName, Date, MeasurementType, MeasurementValue) when is_list(StationName) and is_list(MeasurementType) and is_float(MeasurementValue) ->
+addValue(#monitor { stations = Stations }, StationName, Date, MeasurementType, MeasurementValue) when is_list(StationName) and is_list(MeasurementType) and is_number(MeasurementValue) ->
   addValueCheckedStation(#monitor {stations =  Stations}, maps:is_key(StationName, Stations), StationName, Date, MeasurementType, MeasurementValue);
-addValue(#monitor { stations = Stations }, Coordinates, Date, MeasurementType, MeasurementValue) when is_tuple(Coordinates) and is_list(MeasurementType) and is_float(MeasurementValue) ->
+addValue(#monitor { stations = Stations }, Coordinates, Date, MeasurementType, MeasurementValue) when is_tuple(Coordinates) and is_list(MeasurementType) and is_number(MeasurementValue) ->
   addValueCheckedStation(#monitor {stations =  Stations},
     lists:any(fun (#station{ coordinates = Coords, measurements = _ }) -> Coordinates == Coords end, maps:values(Stations)),
     stationNameFromCoordinates(Stations, Coordinates), Date, MeasurementType, MeasurementValue).
@@ -67,19 +67,29 @@ removeValue(#monitor { stations = Stations}, StationName, Date, MeasurementType)
   Station = maps:get(StationName, Stations),
   #station{ coordinates = Coordinates, measurements = Measurements } = Station,
   UpdatedStations = maps:put( StationName, #station{coordinates = Coordinates, measurements =
-      lists:filter(fun (#measurement{ date = D, type = T, value = _}) -> D /= Date orelse T /= MeasurementType end, Measurements)}, Stations)
+      lists:filter(fun (#measurement{ date = D, type = T, value = _}) -> D /= Date orelse T /= MeasurementType end, Measurements)}, Stations),
   #monitor { stations = UpdatedStations }.
 
 getOneValue(#monitor {stations = Stations}, StationCoordinates, Date, MeasurementType) when is_map(Stations) and is_tuple(StationCoordinates) and is_tuple(Date) and is_list(MeasurementType) ->
-  getOneValue(#monitor {stations = Stations}, stationNameFromCoordinates(StationCoordinates), Date, MeasurementType);
+  getOneValue(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), Date, MeasurementType);
 getOneValue(#monitor {stations = Stations}, StationName, Date, MeasurementType) when is_map(Stations) and is_list(StationName) and is_tuple(Date) and is_list(MeasurementType) ->
   #station{ coordinates = _, measurements = Measurements} = maps:get(StationName, Stations),
-  lists:search(fun (#measurement{ date = D, type = T, value = _ }) -> D == Date andalso T == MeasurementType end, Measurements).
+  lists:search(fun (#measurement{ date = {D, _}, type = T, value = _ }) -> D == Date andalso T == MeasurementType end, Measurements).
 
 getStationMean(#monitor {stations = Stations}, StationCoordinates, MeasurementType) when is_map(Stations) andalso is_tuple(StationCoordinates) and is_list(MeasurementType) ->
-  getStationMean(#monitor {stations = Stations}, stationNameFromCoordinates(StationCoordinates), MeasurementType);
+  getStationMean(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), MeasurementType);
 getStationMean(#monitor {stations = Stations}, StationName, MeasurementType) when is_map(Stations) andalso is_list(StationName) and is_list(MeasurementType) ->
-  Values = lists:map(fun (#measurement{date = _, type = _, value = V}) -> V end, lists:filter(fun (#measurement{ date = _, type = T, value = _}) -> MeasurementType == T end, maps:get(StationName, Stations))),
+  #station{ coordinates = _, measurements = Measurements} = maps:get(StationName, Stations),
+  Values = lists:map(fun (#measurement{date = _, type = _, value = V}) -> V end,
+    lists:filter(fun (#measurement{ date = _, type = T, value = _ }) -> MeasurementType == T end, Measurements)),
   lists:sum(Values) / length(Values).
 
-%%getDailyMean/3 - zwraca średnią wartość parametru danego typu, danego dnia na wszystkich stacjach;
+getDailyMean(#monitor {stations = Stations}, Date, MeasurementType) when is_map(Stations) andalso is_tuple(Date) and is_list(MeasurementType) ->
+  AllMeasurements = lists:append(
+    maps:values(
+      maps:map(fun (_, #station{ coordinates = _ , measurements = Measurements}) -> Measurements end, Stations))),
+  DateTypeMeasurementValues = lists:map(fun (#measurement{ date = _, type = _, value = V}) -> V end,
+    lists:filter(fun (#measurement{ date = {D, _}, type = T, value = _ }) ->  T == MeasurementType  andalso D == Date end, AllMeasurements)),
+  lists:sum(DateTypeMeasurementValues) / length(DateTypeMeasurementValues).
+
+% getCorrelation - obliczy odchylenie standardowe z różnic pomiarów dwóch typów zanieczyszczeń
