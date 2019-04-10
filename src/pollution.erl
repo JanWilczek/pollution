@@ -10,7 +10,7 @@
 -author("Jan Wilczek").
 
 %% API
--export([createMonitor/0, addStation/3, addValue/5, removeValue/4, getOneValue/4, getStationMean/3, getDailyMean/3]).
+-export([createMonitor/0, addStation/3, addValue/5, removeValue/4, getOneValue/4, getStationMean/3, getDailyMean/3, getCorrelation/4]).
 
 -record(measurement, {date, type, value}).
 -record(station, {coordinates, measurements}).
@@ -79,9 +79,11 @@ getOneValue(#monitor {stations = Stations}, StationName, Date, MeasurementType) 
 getStationMean(#monitor {stations = Stations}, StationCoordinates, MeasurementType) when is_map(Stations) andalso is_tuple(StationCoordinates) and is_list(MeasurementType) ->
   getStationMean(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), MeasurementType);
 getStationMean(#monitor {stations = Stations}, StationName, MeasurementType) when is_map(Stations) andalso is_list(StationName) and is_list(MeasurementType) ->
-  #station{ coordinates = _, measurements = Measurements} = maps:get(StationName, Stations),
-  Values = lists:map(fun (#measurement{date = _, type = _, value = V}) -> V end,
-    lists:filter(fun (#measurement{ date = _, type = T, value = _ }) -> MeasurementType == T end, Measurements)),
+  Measurements = getStationMeasurements(Stations, StationName),
+  getMeanFromMeasurements(Measurements, MeasurementType).
+
+getMeanFromMeasurements(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
+  Values = getValuesOfType(Measurements, Type),
   lists:sum(Values) / length(Values).
 
 getDailyMean(#monitor {stations = Stations}, Date, MeasurementType) when is_map(Stations) andalso is_tuple(Date) and is_list(MeasurementType) ->
@@ -93,3 +95,25 @@ getDailyMean(#monitor {stations = Stations}, Date, MeasurementType) when is_map(
   lists:sum(DateTypeMeasurementValues) / length(DateTypeMeasurementValues).
 
 % getCorrelation - obliczy odchylenie standardowe z różnic pomiarów dwóch typów zanieczyszczeń
+getCorrelation(#monitor {stations = Stations}, StationCoordinates, MeasurementType1, MeasurementType2) when is_map(Stations) and is_tuple(StationCoordinates) and is_list(MeasurementType1) and is_list(MeasurementType2)_->
+  getCorrelation(#monitor {stations = Stations}, stationNameFromCoordinates(StationCoordinates), MeasurementType1, MeasurementType2);
+getCorrelation(#monitor {stations = Stations}, StationName, MeasurementType1, MeasurementType2) when is_map(Stations) and is_list(StationName) and is_list(MeasurementType1) and is_list(MeasurementType2)_->
+  MT1Mean = getStationMean(#monitor {stations = Stations}, StationName, MeasurementType1),
+  MT2Mean = getStationMean(#monitor {stations = Stations}, StationName, MeasurementType2),
+  Measurements = getStationMeasurements(Stations, StationName),
+  MT1STD = getSTDofType(Measurements, MeasurementType1),
+  MT2STD = getSTDofType(Measurements, MeasurementType2),
+  {error, "Not implemented."}. % How to traverse two lists simultaneously?
+
+getSTDofType(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
+  Mean = getMeanFromMeasurements(Measurements, Type),
+  Values = getValuesOfType(Measurements, Type),
+  math:sqrt(lists:sum(lists:map(fun (Value) -> math:pow((Value - Mean), 2) end, Values)) / (length(Values) - 1)).
+
+getValuesOfType(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
+  lists:map(fun (#measurement{date = _, type = _, value = V}) -> V end,
+    lists:filter(fun (#measurement{ date = _, type = T, value = _ }) -> Type == T end, Measurements)).
+
+getStationMeasurements(Stations, StationName) when is_map(Stations) and is_list(StationName) ->
+  #station{ coordinates = _, measurements = Measurements} = maps:get(StationName, Stations),
+  Measurements.
