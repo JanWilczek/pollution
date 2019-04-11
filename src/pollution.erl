@@ -94,7 +94,9 @@ getDailyMean(#monitor {stations = Stations}, Date, MeasurementType) when is_map(
     lists:filter(fun (#measurement{ date = {D, _}, type = T, value = _ }) ->  T == MeasurementType  andalso D == Date end, AllMeasurements)),
   lists:sum(DateTypeMeasurementValues) / length(DateTypeMeasurementValues).
 
-% getCorrelation - calculates correlation between two given measurement types at a given station. Corr(X, Y) = Sum((X - E(X))(Y - E(Y))/ ( STD(X) * STD(Y) ))
+% Currently: getCorrelation - calculates correlation between two given measurement types at a given station. Corr(X, Y) = Sum((X - E(X))(Y - E(Y))/ ( STD(X) * STD(Y) ))
+% TODO: getCorrelation - for measurements of different types, that where taken at the same time calculate the difference,
+% raise to second power, sum, divide by number of measurements minus one and calculate the square root.
 getCorrelation(#monitor {stations = Stations}, StationCoordinates, MeasurementType1, MeasurementType2) when is_map(Stations) and is_tuple(StationCoordinates) and is_list(MeasurementType1) and is_list(MeasurementType2) ->
   getCorrelation(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), MeasurementType1, MeasurementType2);
 getCorrelation(#monitor {stations = Stations}, StationName, MeasurementType1, MeasurementType2) when is_map(Stations) and is_list(StationName) and is_list(MeasurementType1) and is_list(MeasurementType2) ->
