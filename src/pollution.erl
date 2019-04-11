@@ -94,16 +94,23 @@ getDailyMean(#monitor {stations = Stations}, Date, MeasurementType) when is_map(
     lists:filter(fun (#measurement{ date = {D, _}, type = T, value = _ }) ->  T == MeasurementType  andalso D == Date end, AllMeasurements)),
   lists:sum(DateTypeMeasurementValues) / length(DateTypeMeasurementValues).
 
-% getCorrelation - obliczy odchylenie standardowe z różnic pomiarów dwóch typów zanieczyszczeń
-getCorrelation(#monitor {stations = Stations}, StationCoordinates, MeasurementType1, MeasurementType2) when is_map(Stations) and is_tuple(StationCoordinates) and is_list(MeasurementType1) and is_list(MeasurementType2)_->
-  getCorrelation(#monitor {stations = Stations}, stationNameFromCoordinates(StationCoordinates), MeasurementType1, MeasurementType2);
-getCorrelation(#monitor {stations = Stations}, StationName, MeasurementType1, MeasurementType2) when is_map(Stations) and is_list(StationName) and is_list(MeasurementType1) and is_list(MeasurementType2)_->
+% getCorrelation - calculates correlation between two given measurement types at a given station. Corr(X, Y) = Sum((X - E(X))(Y - E(Y))/ ( STD(X) * STD(Y) ))
+getCorrelation(#monitor {stations = Stations}, StationCoordinates, MeasurementType1, MeasurementType2) when is_map(Stations) and is_tuple(StationCoordinates) and is_list(MeasurementType1) and is_list(MeasurementType2) ->
+  getCorrelation(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), MeasurementType1, MeasurementType2);
+getCorrelation(#monitor {stations = Stations}, StationName, MeasurementType1, MeasurementType2) when is_map(Stations) and is_list(StationName) and is_list(MeasurementType1) and is_list(MeasurementType2) ->
   MT1Mean = getStationMean(#monitor {stations = Stations}, StationName, MeasurementType1),
   MT2Mean = getStationMean(#monitor {stations = Stations}, StationName, MeasurementType2),
   Measurements = getStationMeasurements(Stations, StationName),
   MT1STD = getSTDofType(Measurements, MeasurementType1),
   MT2STD = getSTDofType(Measurements, MeasurementType2),
-  {error, "Not implemented."}. % How to traverse two lists simultaneously?
+  twoFold(fun (X, Y) -> (X - MT1Mean) * (Y - MT2Mean) / (MT1STD * MT2STD) end, 0.0, getValuesOfType(Measurements, MeasurementType1), getValuesOfType(Measurements, MeasurementType2)).
+
+twoFold(Fun, Acc, _, []) when is_function(Fun) and is_number(Acc) ->
+  Acc;
+twoFold(Fun, Acc, [], _) when is_function(Fun) and is_number(Acc) ->
+  Acc;
+twoFold(Fun, Acc, [H1 | T1], [H2 | T2]) when is_function(Fun) and is_number(Acc) ->
+  twoFold(Fun, Acc + Fun(H1, H2), T1, T2).
 
 getSTDofType(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
   Mean = getMeanFromMeasurements(Measurements, Type),
