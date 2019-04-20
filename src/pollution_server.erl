@@ -21,11 +21,11 @@ init() ->
   serverLoop(InitialState).
 
 stop() ->
-  server_monitor ! stop.
+  call(stop).
 
 serverLoop(Monitor) ->
   receive
-    {request, Pid, {add_station, StationName, StationCoordinates}} ->
+    {request, Pid, {addStation, StationName, StationCoordinates}} ->
       NewMonitor = pollution:addStation(Monitor, StationName, StationCoordinates),
       case NewMonitor of
         {error, _} -> Pid ! {response, NewMonitor},
@@ -44,10 +44,30 @@ serverLoop(Monitor) ->
           serverLoop(NewMonitor)
       end;
 
+    {request, Pid, {removeValue, StationNameOrCoordinates, Date, Type}} ->
+      NewMonitor = pollution:removeValue(Monitor, StationNameOrCoordinates, Date, Type),
+      case NewMonitor of
+        {error, _} ->
+          Pid ! {response, NewMonitor},
+          serverLoop(Monitor);
+        _ -> Pid ! {response, ok},
+          serverLoop(NewMonitor)
+      end;
+
+    {request, Pid, {getOneValue, StationNameOrCoordinates, Date, Type}} ->
+      Pid ! {response, pollution:getOneValue(Monitor, StationNameOrCoordinates, Date, Type)},
+      serverLoop(Monitor);
+
+    {request, Pid, {getStationMean, StationNameOrCoordinates, Type}} ->
+      Pid ! {response, pollution:getStationMean(Monitor, StationNameOrCoordinates, Type)},
+      serverLoop(Monitor);
+
+    {request, Pid, {getDailyMean, Date, Type}} ->
+      Pid ! {response, pollution:getDailyMean(Monitor, Date, Type)},
+      serverLoop(Monitor);
+
     {request, Pid, stop} ->
       Pid ! {response, ok}
-  after
-    100000 -> self() ! stop
   end.
 
 call(Message) ->
@@ -57,7 +77,7 @@ call(Message) ->
   end.
 
 addStation(StationName, StationCoordinates) ->
-  call({add_station, StationName, StationCoordinates}).
+  call({addStation, StationName, StationCoordinates}).
 
 addValue(StationNameOrCoordinates, DateTime, Type, Value) ->
   call({addValue, StationNameOrCoordinates, DateTime, Type, Value}).

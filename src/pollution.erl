@@ -74,13 +74,20 @@ getOneValue(#monitor {stations = Stations}, StationCoordinates, Date, Measuremen
   getOneValue(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), Date, MeasurementType);
 getOneValue(#monitor {stations = Stations}, StationName, Date, MeasurementType) when is_map(Stations) and is_list(StationName) and is_tuple(Date) and is_list(MeasurementType) ->
   #station{ coordinates = _, measurements = Measurements} = maps:get(StationName, Stations),
-  lists:search(fun (#measurement{ date = {D, _}, type = T, value = _ }) -> D == Date andalso T == MeasurementType end, Measurements).
+  Result = lists:search(fun (#measurement{ date = D, type = T, value = _ }) -> D == Date andalso T == MeasurementType end, Measurements),
+  case Result of
+    {value, Value} -> Value;
+    _ -> {error, "No value specified by given data."}
+  end.
 
 getStationMean(#monitor {stations = Stations}, StationCoordinates, MeasurementType) when is_map(Stations) andalso is_tuple(StationCoordinates) and is_list(MeasurementType) ->
   getStationMean(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), MeasurementType);
 getStationMean(#monitor {stations = Stations}, StationName, MeasurementType) when is_map(Stations) andalso is_list(StationName) and is_list(MeasurementType) ->
   Measurements = getStationMeasurements(Stations, StationName),
-  getMeanFromMeasurements(Measurements, MeasurementType).
+  case length(Measurements) of
+    0 -> {error, "No measurements of given type at that station"};
+    _ -> getMeanFromMeasurements(Measurements, MeasurementType)
+  end.
 
 getMeanFromMeasurements(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
   Values = getValuesOfType(Measurements, Type),
