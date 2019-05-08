@@ -10,7 +10,7 @@
 -author("Jan Wilczek").
 
 %% API
--export([start/0, stop/0, init/0, addStation/2, addValue/4, removeValue/3, getOneValue/3, getStationMean/2, getDailyMean/2]).
+-export([start/0, stop/0, init/0, addStation/2, addValue/4, removeValue/3, getOneValue/3, getStationMean/2, getDailyMean/2, getCorrelation/3, test/0]).
 
 start() ->
   Pid = spawn_link(?MODULE, init, []),
@@ -66,6 +66,10 @@ serverLoop(Monitor) ->
       Pid ! {response, pollution:getDailyMean(Monitor, Date, Type)},
       serverLoop(Monitor);
 
+    {request, Pid, {getCorrelation, StationNameOrCoordinates, Type1, Type2}} ->
+      Pid ! {response, pollution:getCorrelation(Monitor, StationNameOrCoordinates, Type1, Type2)},
+      serverLoop(Monitor);
+
     {request, Pid, stop} ->
       Pid ! {response, ok}
   end.
@@ -94,6 +98,28 @@ getStationMean(StationNameOrCoordinates, Type) ->
 getDailyMean(Date, Type) ->
   call({getDailyMean, Date, Type}).
 
-%getCorrelation
+getCorrelation(StationNameOrCoordinates, Type1, Type2) ->
+  call({getCorrelation, StationNameOrCoordinates, Type1, Type2}).
 
+test() ->
+  pollution_server:start(),
+  pollution_server:addStation("Aleje", {1,2}),
+  pollution_server:addValue("Kamionka", calendar:local_time(), "PM10", 1.0),
+  pollution_server:addStation("Kamionka", {4,5.0}),
+  pollution_server:addValue("Aleje", calendar:local_time(), "PM10", 4.0),
+  pollution_server:addValue("Aleje", calendar:local_time(), "PM10", 5.0),
+  pollution_server:addValue("Kamia", calendar:local_time(), "PM10", 1.0),
+  pollution_server:addValue({1,2}, calendar:local_time(), "PM10", 6.0),
+  pollution_server:addValue("Aleje", {{2019,4,18}, {16,21,00}}, "PM10", 2),
+  pollution_server:addValue("Aleje", {{2019,4,18}, {20,20,00}}, "PM10", 6),
+  pollution_server:addValue("Aleje", {{2019,4,18}, {20,20,00}}, "PM25", 10),
+  pollution_server:addValue("Aleje", {{2019,4,30}, {11,00,00}}, "PM25", 1),
+  pollution_server:addValue("Aleje", {{2019,4,30}, {11,00,00}}, "PM10", 3.5),
+  pollution_server:getOneValue("Aleje", {{2019, 4, 18}, {16,21,00}}, "PM10"),
+  pollution_server:removeValue("Aleje", {{2019, 4, 18}, {16,21,00}}, "PM10"),
+  pollution_server:getOneValue("Aleje", {{2019, 4, 18}, {16,21,00}}, "PM10"),
+  pollution_server:getStationMean("Aleje", "PM10"),
+  pollution_server:getStationMean("Kamionka", "PM10"),
+  pollution_server:getOneValue("Aleje", {{2019, 4, 18}, {16,21,00}}, "PM10"),
+  pollution_server:getDailyMean({2019, 4, 18}, "PM10").
 

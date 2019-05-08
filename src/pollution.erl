@@ -85,13 +85,16 @@ getStationMean(#monitor {stations = Stations}, StationCoordinates, MeasurementTy
 getStationMean(#monitor {stations = Stations}, StationName, MeasurementType) when is_map(Stations) andalso is_list(StationName) and is_list(MeasurementType) ->
   Measurements = getStationMeasurements(Stations, StationName),
   case length(Measurements) of
-    0 -> {error, "No measurements of given type at that station"};
+    0 -> {error, "No measurements at that station"};
     _ -> getMeanFromMeasurements(Measurements, MeasurementType)
   end.
 
 getMeanFromMeasurements(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
   Values = getValuesOfType(Measurements, Type),
-  lists:sum(Values) / length(Values).
+  case length(Values) of
+    0 -> {error, "No measurements of given type at that station"};
+    _ -> lists:sum(Values) / length(Values)
+  end.
 
 getDailyMean(#monitor {stations = Stations}, Date, MeasurementType) when is_map(Stations) andalso is_tuple(Date) and is_list(MeasurementType) ->
   AllMeasurements = lists:append(
@@ -99,36 +102,41 @@ getDailyMean(#monitor {stations = Stations}, Date, MeasurementType) when is_map(
       maps:map(fun (_, #station{ coordinates = _ , measurements = Measurements}) -> Measurements end, Stations))),
   DateTypeMeasurementValues = lists:map(fun (#measurement{ date = _, type = _, value = V}) -> V end,
     lists:filter(fun (#measurement{ date = {D, _}, type = T, value = _ }) ->  T == MeasurementType  andalso D == Date end, AllMeasurements)),
-  lists:sum(DateTypeMeasurementValues) / length(DateTypeMeasurementValues).
+  case length(DateTypeMeasurementValues) of
+    0 -> {error, "No measurements that fit the given date and type."};
+    _ -> lists:sum(DateTypeMeasurementValues) / length(DateTypeMeasurementValues)
+  end.
 
-% Currently: getCorrelation - calculates correlation between two given measurement types at a given station. Corr(X, Y) = Sum((X - E(X))(Y - E(Y))/ ( STD(X) * STD(Y) ))
-% TODO: getCorrelation - for measurements of different types, that where taken at the same time calculate the difference,
+% For measurements of different types, that where taken at the same time calculate the difference,
 % raise to second power, sum, divide by number of measurements minus one and calculate the square root.
 getCorrelation(#monitor {stations = Stations}, StationCoordinates, MeasurementType1, MeasurementType2) when is_map(Stations) and is_tuple(StationCoordinates) and is_list(MeasurementType1) and is_list(MeasurementType2) ->
   getCorrelation(#monitor {stations = Stations}, stationNameFromCoordinates(Stations, StationCoordinates), MeasurementType1, MeasurementType2);
 getCorrelation(#monitor {stations = Stations}, StationName, MeasurementType1, MeasurementType2) when is_map(Stations) and is_list(StationName) and is_list(MeasurementType1) and is_list(MeasurementType2) ->
-  MT1Mean = getStationMean(#monitor {stations = Stations}, StationName, MeasurementType1),
-  MT2Mean = getStationMean(#monitor {stations = Stations}, StationName, MeasurementType2),
   Measurements = getStationMeasurements(Stations, StationName),
-  MT1STD = getSTDofType(Measurements, MeasurementType1),
-  MT2STD = getSTDofType(Measurements, MeasurementType2),
-  twoFold(fun (X, Y) -> (X - MT1Mean) * (Y - MT2Mean) / (MT1STD * MT2STD) end, 0.0, getValuesOfType(Measurements, MeasurementType1), getValuesOfType(Measurements, MeasurementType2)).
+  MeasurementsType1 = getMeasurementsOfType(Measurements, MeasurementType1),
+  MeasurementsType2 = getMeasurementsOfType(Measurements, MeasurementType2),
+  getCorrelationFromMeasurements(0, 0, MeasurementsType1, MeasurementsType2).
 
-twoFold(Fun, Acc, _, []) when is_function(Fun) and is_number(Acc) ->
-  Acc;
-twoFold(Fun, Acc, [], _) when is_function(Fun) and is_number(Acc) ->
-  Acc;
-twoFold(Fun, Acc, [H1 | T1], [H2 | T2]) when is_function(Fun) and is_number(Acc) ->
-  twoFold(Fun, Acc + Fun(H1, H2), T1, T2).
-
-getSTDofType(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
-  Mean = getMeanFromMeasurements(Measurements, Type),
-  Values = getValuesOfType(Measurements, Type),
-  math:sqrt(lists:sum(lists:map(fun (Value) -> math:pow((Value - Mean), 2) end, Values)) / (length(Values) - 1)).
+getCorrelationFromMeasurements(DiffSquaredSum, Summed, [], _) ->
+  case Summed of
+      0 -> 0;
+      1 -> math:sqrt(DiffSquaredSum);
+      _ -> math:sqrt(DiffSquaredSum / (Summed - 1))
+  end;
+getCorrelationFromMeasurements(DiffSquaredSum, Summed, _, []) ->
+  getCorrelationFromMeasurements(DiffSquaredSum, Summed, [], []);
+getCorrelationFromMeasurements(DiffSquaredSum, Summed, [ #measurement{date = Date, type = _, value = Value} | T ], Measurements2) ->
+  case lists:search(fun (#measurement{ date = D, type = _, value = _}) -> Date == D end, Measurements2) of
+    false -> getCorrelationFromMeasurements(DiffSquaredSum, Summed, T, Measurements2);
+    {value, #measurement{ date = _, type = _, value = V}} -> getCorrelationFromMeasurements(DiffSquaredSum + math:pow(Value - V, 2), Summed + 1, T, Measurements2)
+  end.
 
 getValuesOfType(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
   lists:map(fun (#measurement{date = _, type = _, value = V}) -> V end,
-    lists:filter(fun (#measurement{ date = _, type = T, value = _ }) -> Type == T end, Measurements)).
+    getMeasurementsOfType(Measurements, Type)).
+
+getMeasurementsOfType(Measurements, Type) when is_list(Measurements) and is_list(Type) ->
+  lists:filter(fun (#measurement{ date = _, type = T, value = _ }) -> Type == T end, Measurements).
 
 getStationMeasurements(Stations, StationName) when is_map(Stations) and is_list(StationName) ->
   #station{ coordinates = _, measurements = Measurements} = maps:get(StationName, Stations),
