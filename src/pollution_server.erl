@@ -10,7 +10,7 @@
 -author("Jan Wilczek").
 
 %% API
--export([start/0, stop/0, init/0, addStation/2, addValue/4, removeValue/3, getOneValue/3, getStationMean/2, getDailyMean/2, getCorrelation/3, test/0]).
+-export([start/0, stop/0, init/0, addStation/2, addValue/4, removeValue/3, getOneValue/3, getStationMean/2, getDailyMean/2, getCorrelation/3, test/0, crash/0]).
 
 start() ->
   Pid = spawn_link(?MODULE, init, []),
@@ -70,6 +70,10 @@ serverLoop(Monitor) ->
       Pid ! {response, pollution:getCorrelation(Monitor, StationNameOrCoordinates, Type1, Type2)},
       serverLoop(Monitor);
 
+    {request, Pid, crash} ->
+      % Pid ! {response, 1 / 0};
+      1 / 0;
+
     {request, Pid, stop} ->
       Pid ! {response, ok}
   end.
@@ -100,6 +104,9 @@ getDailyMean(Date, Type) ->
 
 getCorrelation(StationNameOrCoordinates, Type1, Type2) ->
   call({getCorrelation, StationNameOrCoordinates, Type1, Type2}).
+
+crash() ->
+  server_monitor ! {request, self(), crash}.
 
 test() ->
   pollution_server:start(),

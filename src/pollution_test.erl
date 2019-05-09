@@ -17,10 +17,10 @@ addStation_test() -> #monitor{ stations = Stations } = pollution:addStation(poll
   ?assert(maps:is_key("Aleje", Stations)),
   ?assertEqual(maps:get("Aleje", Stations), #station{ coordinates = {1, 2.0}, measurements = []}).
 
-setup_test() ->
+setup_test_() ->
   {setup,
-    fun () -> pollution:createMonitor() end,
-    [fun addGetValue_test/1]}.
+    fun () -> setUp() end,
+    fun () -> [fun addGetValue_test/1, fun removeValue_test/1] end}.
 
 setUp() ->
   M1 = pollution:createMonitor(),
@@ -28,5 +28,10 @@ setUp() ->
   M2.
 
 addGetValue_test(Monitor) -> M = pollution:addValue(Monitor, "Valley", {{2019, 5, 9},{7,12,0}}, "PM10", 100.1),
-  ?assertEqual(100.1, pollution:getOneValue(Monitor, "Valley", {{2019, 5, 9}, {7,12,0}}, "PM10")),
-  ?assertEqual(100.1, pollution:getOneValue(Monitor, {-81.3, 52.3}, {{2019, 5, 9}, {7,12,0}}, "PM10")).
+  ?assertEqual(100.1, pollution:getOneValue(M, "Valley", {{2019, 5, 9}, {7,12,0}}, "PM10")),
+  ?assertEqual(100.1, pollution:getOneValue(M, {-81.3, 52.3}, {{2019, 5, 9}, {7,12,0}}, "PM10")).
+
+removeValue_test(Monitor) -> M = pollution:addValue(Monitor, "Valley", {{2019, 5, 9},{7,12,0}}, "PM10", 100.1),
+  M2 = pollution:removeValue(M, "Valley", {{2019,5,9}, {7,12,0}}, "PM10"),
+  {Atom, _} = pollution:getOneValue(M2, "Valley", {{2019, 5,9}, {7,12,0}}, "PM10"),
+  ?assertEqual(Atom, error).
