@@ -8,13 +8,11 @@
 %%%-------------------------------------------------------------------
 -module(pollution).
 -author("Jan Wilczek").
+-include("pollution.hrl").
 
 %% API
 -export([createMonitor/0, addStation/3, addValue/5, removeValue/4, getOneValue/4, getStationMean/3, getDailyMean/3, getCorrelation/4]).
 
--record(measurement, {date, type, value}).
--record(station, {coordinates, measurements}).
--record(monitor, {stations}).
 
 createMonitor() ->
   #monitor{ stations=#{} }.
