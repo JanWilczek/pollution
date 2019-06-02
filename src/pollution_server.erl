@@ -71,7 +71,6 @@ serverLoop(Monitor) ->
       serverLoop(Monitor);
 
     {request, Pid, crash} ->
-      % Pid ! {response, 1 / 0};
       1 / 0;
 
     {request, Pid, stop} ->

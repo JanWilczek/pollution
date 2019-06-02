@@ -12,7 +12,7 @@
 
 %% API
 -export([start_link/1, init/1, handle_cast/2, handle_call/3, terminate/2]).
--export([start/0, stop/0, addStation/2, addValue/4, getOneValue/3]).
+-export([start/0, stop/0, addStation/2, addValue/4, removeValue/3, getOneValue/3]).
 
 start_link(InitialValue) ->     % server name           callback module
   gen_server:start_link({local, pollution_gen_server}, pollution_gen_server, InitialValue, []).
@@ -37,9 +37,9 @@ addValue(StationNameOrCoordinates, DateTime, Type, Value) ->
 getOneValue(StationNameOrCoordinates, Date, Type) ->
   gen_server:call(pollution_gen_server, {getOneValue, StationNameOrCoordinates, Date, Type}).
 
-%%removeValue(StationNameOrCoordinates, DateTime, Type) ->
-%%  call({removeValue, StationNameOrCoordinates, DateTime, Type}).
-%%
+removeValue(StationNameOrCoordinates, DateTime, Type) ->
+  gen_server:call({removeValue, StationNameOrCoordinates, DateTime, Type}).
+
 %%getOneValue(StationNameOrCoordinates, DateTime, Type) ->
 %%  call({getOneValue, StationNameOrCoordinates, DateTime, Type}).
 %%
@@ -72,7 +72,13 @@ handle_call({addValue, StationNameOrCoordinates, DateTime, Type, Value}, _From, 
     _ -> {reply, ok, NewMonitor}
   end;
 handle_call({getOneValue, StationNameOrCoordinates, Date, Type}, _From, Monitor) ->
-  {reply, pollution:getOneValue(Monitor, StationNameOrCoordinates, Date, Type), Monitor}.
+  {reply, pollution:getOneValue(Monitor, StationNameOrCoordinates, Date, Type), Monitor};
+handle_call({removeValue, StationNameOrCoordinates, DateTime, Type}, _From, Monitor) ->
+  NewMonitor = pollution:removeValue(Monitor, StationNameOrCoordinates, DateTime, Type),
+  case NewMonitor of
+    {error, _} -> {reply, NewMonitor, Monitor};
+    _ -> {reply, ok, NewMonitor}
+  end.
 
 terminate(Reason, Value) ->
   io:format("Server: exit with value ~p~n.", [Value]),
