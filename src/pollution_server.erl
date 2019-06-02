@@ -107,6 +107,7 @@ getCorrelation(StationNameOrCoordinates, Type1, Type2) ->
 crash() ->
   server_monitor ! {request, self(), crash}.
 
+%% Example usage
 test() ->
   pollution_server:start(),
   pollution_server:addStation("Aleje", {1,2}),

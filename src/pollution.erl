@@ -75,7 +75,7 @@ getOneValue(#monitor {stations = Stations}, StationName, Date, MeasurementType) 
   Result = lists:search(fun (#measurement{ date = D, type = T, value = _ }) -> D == Date andalso T == MeasurementType end, Measurements),
   case Result of
     {value, Value} -> Value;
-    _ -> {error, "No value specified by given data."}
+    _ -> {error, "No measurements corresponding to the given criteria."}
   end.
 
 getStationMean(#monitor {stations = Stations}, StationCoordinates, MeasurementType) when is_map(Stations) andalso is_tuple(StationCoordinates) and is_list(MeasurementType) ->

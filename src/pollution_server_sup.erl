@@ -17,7 +17,8 @@ start() ->
 
 loop() ->
   process_flag(trap_exit, true),
-  pollution_server:start(),
+%%  pollution_server:start(),
+  pollution_gen_server:start(),
   receive
     {'EXIT', _, normal} -> ok;
     {'EXIT', _, _} -> loop()
